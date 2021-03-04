@@ -63,9 +63,9 @@ void traverse_data(vector<pair<string,string>> input) {
 }
 
 int create_sst(string file_path) {
-  rocksdb::Options option;
   vector<pair<string,string>> input;
   vector<pair<string,string>>::iterator input_itr;
+  rocksdb::Options option;
 
   /* open statistics and disable compression */
   option.create_if_missing = true;
@@ -109,11 +109,64 @@ int create_sst(string file_path) {
   return 0;
 }
 
+static rocksdb::DB *db;
+
+void create_db() {
+  rocksdb::Options option;
+
+  /* open statistics and disable compression */
+  option.create_if_missing = true;
+  option.compression = rocksdb::CompressionType::kNoCompression;
+
+  rocksdb::Status s = rocksdb::DB::Open( option,"./db", &db);
+  if (!s.ok()) {
+    printf("Open db failed : %s\n", s.ToString().c_str());
+    return;
+  }
+}
+
+void db_write(int num_keys) {
+  rocksdb::WriteOptions write_option;
+  write_option.sync = true;
+
+  rocksdb::Slice key;
+  rocksdb::Slice value;
+  rocksdb::Status s;
+  int i;
+
+  printf("begin write \n");
+  for (i = 0;i < num_keys; i++) {
+    key = rand_data(VALUE_SIZE);
+    value = rand_data(VALUE_SIZE);
+
+    s = db->Put(write_option, key, value);
+    if (!s.ok()) {
+      printf("Put db failed : %s\n", s.ToString().c_str());
+      return;
+    }
+  }
+
+  db->Flush(rocksdb::FlushOptions());
+  printf("finish write \n");
+}
+
 int main() {
   if (create_sst("./test.sst") == 0) {
     printf("creates sst success !\n");
   } else {
     printf("creates sst failed !\n");
+  }
+
+  create_db();
+  db_write(100000);
+  
+  rocksdb::IngestExternalFileOptions ifo;
+  // Ingest the 2 passed SST files into the DB
+  rocksdb::Status s = db->IngestExternalFile({"test.sst"}, ifo);
+  if (!s.ok()) {
+    printf("Error while adding file test.sst , Error %s\n",
+           s.ToString().c_str());
+    return 1;
   }
 
   return 0;
