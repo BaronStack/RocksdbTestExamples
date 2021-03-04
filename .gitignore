@@ -53,3 +53,4 @@ fbcode/
 fbcode
 buckifier/*.pyc
 
+db/
